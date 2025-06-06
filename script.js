@@ -13,7 +13,29 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Show the main content
             mainContent.style.display = 'flex';
-            
+
+            document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('image-container');
+    const image = container.querySelector('img');
+
+    container.addEventListener('mousemove', function(e) {
+        let rect = container.getBoundingClientRect();
+
+        // Calculate mouse position relative to the container
+        let x = e.clientX - rect.left;
+        let y = e.clientY - rect.top;
+
+        // Calculate the maximum possible movement
+        let maxX = image.width - container.offsetWidth;
+        let maxY = image.height - container.offsetHeight;
+
+        // Calculate the percentage of movement
+        let moveX = (maxX * x / container.offsetWidth) * -1;
+        let moveY = (maxY * y / container.offsetHeight) * -1;
+
+        // Apply the transformation
+        image.style.transform = 'translate3d(' + moveX + 'px, ' + moveY + 'px, 0)';
+      
             // Play the music
             // We use a Promise to handle potential browser errors
             var promise = music.play();
