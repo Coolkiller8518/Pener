@@ -21,6 +21,17 @@ document.addEventListener('DOMContentLoaded', function() {
     container.addEventListener('mousemove', function(e) {
         let rect = container.getBoundingClientRect();
 
+      
+            // Play the music
+            // We use a Promise to handle potential browser errors
+            var promise = music.play();
+            if (promise !== undefined) {
+                promise.then(_ => {
+                    // Autoplay started!
+                }).catch(error => {
+                    // Autoplay was prevented.
+                    console.log("Music autoplay was blocked by the browser.");
+                    
         // Calculate mouse position relative to the container
         let x = e.clientX - rect.left;
         let y = e.clientY - rect.top;
@@ -35,16 +46,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Apply the transformation
         image.style.transform = 'translate3d(' + moveX + 'px, ' + moveY + 'px, 0)';
-      
-            // Play the music
-            // We use a Promise to handle potential browser errors
-            var promise = music.play();
-            if (promise !== undefined) {
-                promise.then(_ => {
-                    // Autoplay started!
-                }).catch(error => {
-                    // Autoplay was prevented.
-                    console.log("Music autoplay was blocked by the browser.");
                 });
             }
         }, 500); // 500ms matches the CSS transition time
