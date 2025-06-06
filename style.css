@@ -100,3 +100,21 @@ body, html {
     color: #00aaff;
     text-shadow: 0 0 10px #00aaff;
 }
+
+#image-container {
+    width: 600px;
+    height: 400px;
+    overflow: hidden;
+    position: relative;
+    border: 2px solid black;
+    margin: 50px auto;
+}
+
+#image-container img {
+    position: absolute;
+    width: 150%;  /* Larger than the container to allow for panning */
+    height: auto;
+    left: 0;
+    top: 0;
+    transition: transform 0.2s ease-out; /* Smooths the movement */
+}
