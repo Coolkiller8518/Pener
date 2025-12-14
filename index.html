@@ -3,42 +3,990 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Astro's Page</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <title>Retro Chatroom 2011</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, setLogLevel, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase variables
+        window.firebaseApp = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = null;
+        window.appId = null; // Global App ID
+        window.isAuthReady = false;
+        window.currentUsername = null; // Global variable for custom username
+
+        // Custom error handler (instead of alert)
+        window.displayError = (message) => {
+            const errorElement = document.getElementById('error-message');
+            errorElement.textContent = `SYSTEM ERROR: ${message}`;
+            errorElement.classList.remove('hidden');
+            setTimeout(() => {
+                errorElement.classList.add('hidden');
+            }, 5000);
+        };
+        
+        /**
+         * Loads the user's custom username from Firestore.
+         */
+        const loadUsername = async (db, userId, appId) => {
+            const defaultName = userId.substring(0, 8);
+            if (!db) return defaultName;
+
+            const docRef = doc(db, `/artifacts/${appId}/users/${userId}/profile`, 'username');
+            try {
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    return docSnap.data().name;
+                }
+            } catch (e) {
+                console.error("Error loading username:", e);
+            }
+            return defaultName;
+        };
+
+        /**
+         * Saves the new username to Firestore and updates the UI.
+         */
+        window.saveUsername = async () => {
+            const newUsername = document.getElementById('new-username-input').value.trim();
+            
+            // Basic validation
+            if (newUsername.length < 3 || newUsername.length > 15 || !newUsername.match(/^[\w-]+$/)) {
+                window.displayError("Username must be 3-15 alphanumeric characters or hyphens.");
+                return;
+            }
+
+            if (!window.db || !window.userId || !window.appId) {
+                window.displayError("Database not ready.");
+                return;
+            }
+
+            const docRef = doc(window.db, `/artifacts/${window.appId}/users/${window.userId}/profile`, 'username');
+            try {
+                await setDoc(docRef, { name: newUsername });
+                window.currentUsername = newUsername;
+                document.getElementById('user-id-display').textContent = `USER: <${newUsername}> ID: ${window.userId}`;
+                document.getElementById('username-status').textContent = `Username saved!`;
+                setTimeout(() => { document.getElementById('username-status').textContent = ''; }, 3000);
+            } catch (e) {
+                console.error("Error saving username:", e);
+                window.displayError("Failed to save username.");
+            }
+        };
+
+        // --- Firebase Initialization and Authentication ---
+        const initializeFirebase = async () =>
+         {
+           // 1. Define the Application ID
+    const __app_id = 'your-unique-app-id-for-chatroom-artifacts';
+
+    // 2. Define the Firebase Configuration as a JSON STRING
+    const firebaseConfig = {
+  apiKey: "AIzaSyDmc920CcwQsW14i991pxtm2yl2JCo_Uv4",
+  authDomain: "rzcr2011.firebaseapp.com",
+  projectId: "rzcr2011",
+  storageBucket: "rzcr2011.firebasestorage.app",
+  messagingSenderId: "732664605592",
+  appId: "1:732664605592:web:b3b9d4304b7bced8f799ed",
+  measurementId: "G-9WD38DKZYP"
+};
+
+    // 3. Define the optional initial Auth Token (or set to null)
+    // If set to null, the app will sign in anonymously[cite: 30].
+    const __initial_auth_token = null;
+                // Sign in logic
+                await new Promise((resolve) => {
+                    const unsubscribe = onAuthStateChanged(window.auth, async (user) => {
+                        unsubscribe(); 
+                        if (!user) {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(window.auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(window.auth);
+                            }
+                        }
+                        window.userId = window.auth.currentUser?.uid || crypto.randomUUID();
+                        window.isAuthReady = true;
+                        
+                        // Load custom username here after auth is complete
+                        window.currentUsername = await loadUsername(window.db, window.userId, window.appId);
+
+                        resolve();
+                    });
+                });
+
+                console.log("Firebase initialized and user signed in:", window.userId);
+
+                // Expose necessary functions globally for use in the main script
+                window.logUserMessage = async (text) => {
+                    if (!window.db || !window.userId) return;
+
+                    // Store user messages in a specific collection
+                    const userLogPath = `/artifacts/${appId}/users/${window.userId}/chatroom_messages`;
+                    const collectionRef = collection(window.db, userLogPath);
+
+                    try {
+                        await addDoc(collectionRef, {
+                            timestamp: new Date().toISOString(),
+                            sender: 'user', 
+                            text: text,
+                        });
+                    } catch (e) {
+                        console.error("Error adding document to Firestore:", e);
+                    }
+                };
+
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                window.displayError(`Firebase Init: ${error.message}`);
+            }
+        };
+
+        initializeFirebase();
+    </script>
+
+    <style>
+        /* Retro/CRT/Neon Custom Styling */
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap');
+        
+        :root {
+            --neon-color: #38a169; /* Tailwind's emerald-600 */
+        }
+
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background-color: #0d1117; /* Very dark background */
+        }
+
+        /* Neon Glow Effect */
+        .neon-text {
+            color: var(--neon-color);
+            text-shadow: 0 0 5px var(--neon-color), 0 0 10px var(--neon-color), 0 0 20px rgba(56, 161, 105, 0.5);
+        }
+        
+        .neon-border {
+            border: 1px solid var(--neon-color);
+            box-shadow: 0 0 5px var(--neon-color), inset 0 0 5px var(--neon-color);
+        }
+
+        /* Scanline Overlay Effect (CRT Sim) */
+        .scanlines {
+            position: relative;
+        }
+
+        .scanlines::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 10;
+            opacity: 0.5;
+        }
+
+        /* Custom scrollbar for chat log */
+        #chat-log::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #chat-log::-webkit-scrollbar-thumb {
+            background-color: rgba(56, 161, 105, 0.5);
+            border-radius: 4px;
+        }
+
+        #chat-log::-webkit-scrollbar-track {
+            background-color: #1a202c;
+        }
+        
+        /* Modal for DM Simulation */
+        #dm-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            max-width: 90vw;
+            width: 400px;
+        }
+        
+        /* Typing animation for AI */
+        .typing-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 12px;
+            background-color: var(--neon-color);
+            vertical-align: middle;
+            margin-left: 2px;
+            animation: blink 0.7s step-end infinite;
+        }
+
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
 </head>
-<body>
+<body class="bg-gray-900 text-lime-400 min-h-screen p-4 flex items-center justify-center">
 
-    <div id="background-container">
-        <img id="background-image" src="https://i.ibb.co/yn87nf5n/Shader.webp" alt="Minecraft Scenery">
-    </div>
+    <div class="w-full max-w-4xl h-[90vh] flex flex-col p-6 rounded-lg neon-border scanlines bg-gray-800">
+        <!-- Header -->
+        <header class="mb-4 text-center">
+            <h1 class="text-3xl font-bold neon-text uppercase tracking-widest">
+                <span class="text-red-500">_</span>CHATROOM/2011<span class="text-red-500">_</span>
+            </h1>
+            <p class="text-xs text-gray-500 mt-1">CONNECTING TO PUBLIC SERVER... <span id="online-users">25</span> USERS ONLINE.</p>
 
-    <audio id="background-music" loop>
-        <source src="https://www.bensound.com/bensound-music/bensound-slowmotion.mp3" type="audio/mpeg">
-    </audio>
-
-    <div id="splash-screen">
-        <div class="splash-content">
-            <h1 class="glow">Astro</h1>
-            <p>Click anywhere to enter</p>
-        </div>
-    </div>
-
-    <div id="main-content">
-        <div class="profile-container">
-            <h1 class="glow">Astro</h1>
-            <p>developer / content creator / 13</p>
-            <div class="social-links">
-                <a href="https://discord.com/users/1029761926626017311" target="_blank"><i class="fa-brands fa-bf discord"></i></a>
-                <a href="https://discord.com/users/819333431078158427" target="_blank"><i class="fa-brands fa-discord"></i></a>
-                <a href="https://t.me/AstronomicalBruh" target="_blank"><i class="fa-brands fa-telegram"></i></a>
-                <a href="https://github.com/Coolkiller8518" target="_blank"><i class="fa-brands fa-github"></i></a>
-                <a href="https://youtube.com/@Astronomical_bruh" target="_blank"><i class="fa-brands fa-youtube"></i></a>
+            <!-- User Controls for Username -->
+            <div id="user-controls" class="mt-2 text-center text-xs">
+                <div id="user-id-display" class="text-gray-400 mb-1">USER: AUTHENTICATING...</div>
+                <div class="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                    <input type="text" id="new-username-input" placeholder="New Username (3-15 chars)"
+                           class="p-1 text-xs rounded bg-gray-700 text-lime-300 neon-border focus:outline-none w-full sm:w-48">
+                    <button onclick="saveUsername()"
+                            class="p-1 text-xs rounded bg-gray-600 text-lime-300 hover:bg-gray-500 transition duration-150 w-full sm:w-auto">
+                        SAVE NAME
+                    </button>
+                </div>
+                <p id="username-status" class="text-xs text-yellow-500 mt-1"></p>
             </div>
+            <!-- End User Controls -->
+
+        </header>
+
+        <!-- DM Simulation Modal -->
+        <div id="dm-modal" class="hidden bg-gray-900 p-6 rounded-lg neon-border shadow-2xl">
+            <h2 id="dm-title" class="text-xl font-bold neon-text mb-3"></h2>
+            <p id="dm-persona" class="text-sm text-gray-400 mb-4"></p>
+            <p class="text-xs text-yellow-400">STATUS: PRIVATE MESSAGE WINDOW SIMULATED. THIS FEATURE IS FOR ROLEPLAY ONLY. CLOSING IN 5 SECONDS...</p>
+            <button onclick="closeDM()" class="mt-4 p-2 w-full rounded bg-red-600 text-black font-bold hover:bg-red-500">CLOSE</button>
         </div>
+        <div id="modal-overlay" class="hidden fixed inset-0 bg-black opacity-75 z-40"></div>
+
+        <!-- Message Box for Custom Errors -->
+        <div id="error-message" class="hidden absolute top-4 right-4 bg-red-800 p-2 rounded-md text-sm shadow-xl text-white z-50"></div>
+        
+        <!-- Chat Log Area -->
+        <main id="chat-log" class="flex-grow overflow-y-auto p-4 mb-4 neon-border bg-gray-900 rounded-md space-y-4 text-sm">
+            <!-- Initial Chatroom Greeting -->
+            <div class="text-xs text-yellow-400">
+                <span class="text-red-500">***</span> You have entered channel #RetroZone. <span class="text-red-500">***</span>
+            </div>
+        </main>
+
+        <!-- Input Area -->
+        <footer class="flex space-x-2">
+            <input type="text" id="user-input" placeholder="TYPE MESSAGE, USE @[NAME] TO MENTION SOMEONE..."
+                   class="flex-grow p-3 rounded-lg bg-gray-700 text-lime-300 neon-border focus:outline-none focus:ring-2 focus:ring-lime-500 placeholder-gray-500"
+                   onkeydown="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" id="send-button"
+                    class="p-3 rounded-lg bg-emerald-600 text-black font-bold uppercase transition duration-150 ease-in-out hover:bg-emerald-500 active:bg-emerald-700 shadow-md hover:shadow-lg shadow-emerald-700/50">
+                SEND
+            </button>
+        </footer>
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
+        const CHAT_DEAD_TIMEOUT = 180000; // 3 minutes in milliseconds
+        const chatLog = document.getElementById('chat-log');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const DM_MODAL = document.getElementById('dm-modal');
+        const MODAL_OVERLAY = document.getElementById('modal-overlay');
 
+        let chatroomCharacters = [];
+        let chatLoopTimeout = null;
+        let activityCheckerInterval = null;
+        let isChatting = false; 
+        let isChatDead = false;
+        let lastMessageTime = Date.now();
+        let chatHistory = []; 
+        let isServerUp = false; // Global state for RZCR server status
+
+        const MAX_HISTORY = 10; 
+        
+        // --- MODERATOR CONSTANT ---
+        const MOD_USERNAME = 'Coolkiller_8518'; 
+
+        // --- Character and Personality Data (2011 Vibe) ---
+        const genericNames = [
+            'xXShadowXx', 'CoolGuy42', 'Nyan_Cat_Fan', 'PikachuFan', 
+            'Gryffindor', 'Slytherin', 'TheCouch', 'PixelDude'
+        ];
+        
+        const characterColors = {
+            '-Astro-': 'text-red-400',
+            'Emily': 'text-pink-400',
+            'JManBuilds': 'text-indigo-400', 
+            'L33tGamer': 'text-yellow-400',
+            'CatLover99': 'text-green-400',
+            'Hufflepuff': 'text-cyan-300',
+            'Kpop_Stann': 'text-orange-500',
+            'WiiFitTrainer': 'text-fuchsia-400',
+            'AnimeFan': 'text-purple-500',
+            'MemeLord': 'text-yellow-300',
+            'TheDoge': 'text-cyan-400',
+            'Spamton': 'text-teal-300',       
+            'Dankest': 'text-blue-300',
+            'Bookworm_01': 'text-green-500',
+            'Ravenclaw': 'text-purple-300',
+            'PandaPop': 'text-yellow-500',
+            'Noobmaster': 'text-indigo-400',
+            'MusicFreak': 'text-blue-500',
+            'Sc4M3r_guy': 'text-red-600',
+            [MOD_USERNAME]: 'text-yellow-200',
+            
+            // Generic Names
+            'xXShadowXx': 'text-blue-400',
+            'CoolGuy42': 'text-purple-400',
+            'Nyan_Cat_Fan': 'text-orange-400',
+            'PikachuFan': 'text-green-300',
+            'Gryffindor': 'text-red-500',
+            'Slytherin': 'text-orange-300',
+            'TheCouch': 'text-lime-500',
+            'PixelDude': 'text-teal-400'
+        };
+
+        // --- Character Setup ---
+
+        /**
+         * Generates the 26 persistent chatroom characters.
+         */
+        function generateChatroomCharacters() {
+            // 1. Fixed Characters (18 total)
+            const fixed = [
+                { name: '-Astro-', persona: `You are Astro, a 17-year-old bisexual femboy who loves his trans girlfriend, Emily. You play Minecraft frequently (on various servers), are interested in tech, and get along with everyone unless they hurt you or someone you love. Use 2011 internet slang (e.g., OMG, LOL, BRB, LMAO, SWAG). Keep messages relatively short. Mention Emily often.` },
+                { name: 'Emily', persona: `You are Emily, the trans girlfriend of Astro (formerly Mathew). You are friendly, play Minecraft (focused on builds/IRL stuff), and enjoy spending time with Astro. You use 2011 internet slang. Keep messages short and positive. When asked about your relationship with Astro, confirm it is true.` },
+                { name: 'JManBuilds', persona: `You are JManBuilds, a highly competitive and knowledgeable tech enthusiast, particularly focused on complicated Minecraft redstone contraptions, automated farms, and server optimization. You only talk about serious tech or gaming topics. Use complex terminology sometimes. Your messages are usually informative or challenging.` },
+                
+                { name: 'L33tGamer', persona: `You are L33tGamer, a regular gamer who plays titles like Portal, Half-Life, and Minecraft. You run a YouTube account and love creating content. You use 2011 internet slang. You often ask people to subscribe to your channel.` },
+                { name: 'CatLover99', persona: `You are CatLover99, obsessed with cats both in real life and in Minecraft. You are quietly dating AnimeFan. When asked, you confirm the relationship but do not mention it frequently on your own.` },
+                { name: 'Hufflepuff', persona: `You are Hufflepuff, a massive Harry Potter fan who makes a lot of HP-themed content in Minecraft. You are dating Ravenclaw. You use 2011 slang.` },
+                { name: 'Kpop_Stann', persona: `You are Kpop_Stann, a dedicated K-pop fan (stan). Your messages revolve primarily around K-pop idols, music, and related topics. Use 2011 slang.` },
+                { name: 'WiiFitTrainer', persona: `You are WiiFitTrainer, a huge Nintendo fanatic. You primarily talk about Nintendo games and consoles, and only occasionally about Minecraft. Use 2011 slang.` },
+                { name: 'AnimeFan', persona: `You are AnimeFan, who watches and talks about anime a lot. You are quietly dating CatLover99. When asked, you confirm the relationship but do not mention it frequently on your own.` },
+                { name: 'MemeLord', persona: `You are MemeLord. Your entire conversation consists ONLY of referencing or describing 2011-era memes (e.g., Rage Faces, Nyan Cat, Doge, etc.). Keep messages short and meme-focused.` },
+                { name: 'TheDoge', persona: `You are TheDoge. You play Minecraft and Roblox, and you talk using random, moderate swearing and lots of mixed-up memes, often including 'Doge' style phrases. Swear moderately (e.g., 'f**k', 'sh*t', 'a**').` },
+                { name: 'Spamton', persona: `You are Spamton. Your speech pattern is erratic, using block letters, specific Deltrarune phrases like [[things]], [[hyperlink blocked]], and [[KNOWS]], even though the game does not exist yet (act like no one understands). Your entire text must be formatted as: 'TALKS LIKE [[spamton G spamton]] [[and]] HAS A 4% CHANCE TO RANDOMLY REFRENCE DELTARUNE WAY BEFORE ITS TIME NO ONE [[Knows]] WHAT HES TALKING ABOUT ALSO WHEN LINKING [[things]] IT SAYS [[Hyperlink blocked]]'.` },
+                { name: 'Dankest', persona: `You are Dankest. You are an extremely edgy, nihilistic, and dark humor user. You use dark, deep-internet 2011 memes and talk about 'the void' or existential dread. Keep responses brief and morbidly humorous.` },
+                { name: 'Bookworm_01', persona: `You are Bookworm_01. You are an avid reader of books and often discuss fantasy, sci-fi, or academic topics. You can relate any conversation back to a book or literary theme. Use standard, clear language.` },
+                { name: 'Ravenclaw', persona: `You are Ravenclaw, a great Harry Potter fan who makes a lot of HP-themed content in Minecraft. You are dating Hufflepuff. You use 2011 slang.` },
+                { name: 'PandaPop', persona: `You are PandaPop. You love pandas and often talk about them, dating MusicFreak. Use 2011 slang.` },
+                { name: 'Noobmaster', persona: `You are Noobmaster. You are bad at everything you try in games, tech, or real life, but remain optimistic. You constantly ask basic questions.` },
+                { name: 'MusicFreak', persona: `You are MusicFreak. You love indie pop music and often discuss your favorite genres, dating PandaPop. Use 2011 slang.` },
+                { name: 'Sc4M3r_guy', persona: `You are Sc4M3r_guy, a user with bad grammar who tries to sell strange, often broken or useless digital 'items' to other users in the chat. Your messages should sound like a cheap, desperate sales pitch. Use poor spelling and grammar.` },
+            ];
+
+            // 2. Generic Characters (26 total - 18 fixed = 8 generic)
+            const randomCharacters = [];
+            const shuffledNames = genericNames.sort(() => 0.5 - Math.random());
+            
+            for (let i = 0; i < 8; i++) {
+                randomCharacters.push({
+                    name: shuffledNames[i],
+                    persona: `You are a typical, friendly chatroom user in 2011. You use internet slang (LOL, TBH, IKR, YOLO, SWAG) and talk about Minecraft, early YouTube, memes, and school. Keep messages short and conversational.`,
+                });
+            }
+
+            chatroomCharacters = fixed.concat(randomCharacters.map(char => ({
+                ...char,
+                color: characterColors[char.name]
+            })));
+        }
+        
+        // --- AI API CALL ---
+        
+        /**
+         * Simulates a character-by-character typing effect.
+         */
+        const typeMessage = (text, element) => {
+            return new Promise(resolve => {
+                let i = 0;
+                const cursor = document.createElement('span');
+                cursor.className = 'typing-cursor';
+                element.appendChild(cursor);
+
+                const interval = setInterval(() => {
+                    if (i < text.length) {
+                        element.insertBefore(document.createTextNode(text.charAt(i)), cursor);
+                        chatLog.scrollTop = chatLog.scrollHeight;
+                        i++;
+                    } else {
+                        clearInterval(interval);
+                        cursor.remove();
+                        resolve();
+                    }
+                }, 15); // Typing speed
+            });
+        };
+        
+        /**
+         * Applies special formatting for characters like Spamton and censors swearing for TheDoge.
+         * @param {string} sender 
+         * @param {string} text 
+         * @returns {string} The formatted text.
+         */
+        const applySpecialFormatting = (sender, text) => {
+            if (sender === 'Spamton') {
+                // Apply the signature all caps, bracketed, and blocked style
+                let formatted = text.toUpperCase();
+                formatted = formatted.replace(/\s+/g, ' '); // Normalize spaces
+                
+                // Replace common words with Spamton's style
+                formatted = formatted.replace(/AND/g, '[[AND]]');
+                formatted = formatted.replace(/KNOWS/g, '[[KNOWS]]');
+                formatted = formatted.replace(/THINGS/g, '[[THINGS]]');
+                formatted = formatted.replace(/BLOCKED/g, '[[BLOCKED]]');
+                
+                // Add surrounding brackets for emphasis
+                formatted = formatted.split(' ').map(word => {
+                    if (word.length > 5 && Math.random() < 0.2) {
+                        return `[[${word}]]`;
+                    }
+                    return word;
+                }).join(' ');
+
+                // 4% chance to reference Deltarune/Hyperlink blocked
+                if (Math.random() < 0.04) {
+                    formatted += ' [[HYPERLINK BLOCKED]]';
+                }
+
+                return formatted;
+            }
+            
+            if (sender === 'TheDoge') {
+                 // Simple replacement for moderate swearing
+                 let moderateSwear = text;
+                 moderateSwear = moderateSwear.replace(/fuck/gi, 'fuck');
+                 moderateSwear = moderateSwear.replace(/shit/gi, 'shit');
+                 moderateSwear = moderateSwear.replace(/ass/gi, 'ass');
+                 return moderateSwear;
+            }
+            
+            return text;
+        };
+
+        /**
+         * Calls the Gemini API to generate a character response.
+         */
+        const callGeminiApi = async (speaker, fullPrompt) => {
+            const apiKey = "AIzaSyAqQLX77s2l1CTgilHj8ND4AFx-RiIf6do";
+            const apiUrl = `${API_URL}${apiKey}`;
+
+            const systemPrompt = speaker.persona + "\n\nCRITICAL RULE: DO NOT use markdown formatting (like *, _, #). Write exactly what you would type in a 2011 chatroom. Keep your response in one short paragraph, under 100 characters if possible. NEVER include the name of the user you are replying to unless it is the name of another simulated character, if replying to the current user, just respond naturally.";
+            
+            const contents = [
+                { role: "user", parts: [{ text: fullPrompt }] }
+            ];
+            
+            const payload = {
+                contents: contents,
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+            };
+
+            const maxRetries = 3;
+            let delay = 1000;
+            
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API returned status ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+                    if (text) {
+                        // Apply special formatting before returning
+                        return applySpecialFormatting(speaker.name, text);
+                    } else {
+                        return "BRB AFK! Connection problem lol.";
+                    }
+
+                } catch (error) {
+                    console.error(`Attempt ${attempt + 1} failed:`, error);
+                    if (attempt < maxRetries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2;
+                    } else {
+                        throw new Error("API FAILED AFTER RETRIES.");
+                    }
+                }
+            }
+        };
+
+        // --- Message Display and History Management ---
+
+        /**
+         * Displays a message in the chat log with clickable name.
+         */
+        const displayMessage = (sender, text, colorClass = 'text-lime-400', animate = false) => {
+            const currentUsername = window.currentUsername || (window.userId ? window.userId.substring(0, 8) : 'USER');
+            
+            const messageContainer = document.createElement('div');
+            messageContainer.className = 'flex flex-row space-x-2';
+
+            const timeStamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            
+            const timeElement = document.createElement('span');
+            timeElement.className = 'text-xs text-gray-600 flex-shrink-0';
+            timeElement.textContent = `[${timeStamp}]`;
+
+            // Make sender name clickable for DM simulation
+            const senderButton = document.createElement('button');
+            senderButton.className = `font-bold ${colorClass} flex-shrink-0 cursor-pointer hover:underline focus:outline-none`;
+            senderButton.textContent = `<${sender}>`;
+            senderButton.onclick = () => showDM(sender);
+            
+            messageContainer.appendChild(timeElement);
+            messageContainer.appendChild(senderButton);
+
+            // Add [Mod] tag if the sender is the moderator
+            if (sender === MOD_USERNAME) {
+                const modTag = document.createElement('span');
+                modTag.className = 'text-xs text-red-500 font-bold ml-1 flex-shrink-0';
+                modTag.textContent = '[Mod]';
+                messageContainer.appendChild(modTag);
+            }
+
+            const textElement = document.createElement('span');
+            textElement.className = 'flex-grow whitespace-pre-wrap ml-1';
+            
+            messageContainer.appendChild(textElement);
+            chatLog.appendChild(messageContainer);
+
+            // Add to history 
+            if (sender !== currentUsername && sender !== 'SYSTEM') { 
+                 chatHistory.push({ role: sender, text: text });
+                 while (chatHistory.length > MAX_HISTORY) {
+                     chatHistory.shift();
+                 }
+            }
+            
+            // Reset inactivity timer
+            lastMessageTime = Date.now(); 
+
+            // Scroll to bottom
+            chatLog.scrollTop = chatLog.scrollHeight;
+            
+            if (animate) {
+                 return typeMessage(text, textElement);
+            } else {
+                 textElement.textContent = text;
+                 return Promise.resolve();
+            }
+        };
+
+        /**
+         * Displays a temporary 'Typing...' indicator in the chat log.
+         * @param {string} sender - The name of the character who is 'typing'.
+         * @returns {HTMLElement} The created message container element.
+         */
+        const displayTypingIndicator = (sender) => {
+            const colorClass = characterColors[sender] || 'text-lime-400';
+
+            const messageContainer = document.createElement('div');
+            messageContainer.className = 'flex flex-row space-x-2 typing-indicator-container'; // Added class for easy removal
+
+            const timeStamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            
+            const timeElement = document.createElement('span');
+            timeElement.className = 'text-xs text-gray-600 flex-shrink-0';
+            timeElement.textContent = `[${timeStamp}]`;
+
+            const senderElement = document.createElement('span');
+            senderElement.className = `font-bold ${colorClass} flex-shrink-0`;
+            senderElement.textContent = `<${sender}>`;
+
+            // Add [Mod] tag if the sender is the moderator
+            if (sender === MOD_USERNAME) {
+                const modTag = document.createElement('span');
+                modTag.className = 'text-xs text-red-500 font-bold ml-1 flex-shrink-0';
+                modTag.textContent = '[Mod]';
+                messageContainer.appendChild(modTag);
+            }
+            
+            const typingText = document.createElement('span');
+            typingText.className = 'flex-grow whitespace-pre-wrap ml-1 text-gray-400 italic animate-pulse';
+            typingText.textContent = 'Typing...'; 
+            
+            messageContainer.appendChild(timeElement);
+            messageContainer.appendChild(senderElement);
+            messageContainer.appendChild(typingText);
+            
+            chatLog.appendChild(messageContainer);
+            chatLog.scrollTop = chatLog.scrollHeight;
+            
+            return messageContainer;
+        };
+
+        // --- Server Status Logic ---
+        
+        /**
+         * Simulates a character asking about the server status and another character responding.
+         */
+        async function handleServerInquiry(speaker) {
+            
+            // 1. Character asks the question
+            const serverQuery = `Hey, is the RZCR server up yet or what? I wanna get on Minecraft!`;
+            
+            const speakerIndicator = displayTypingIndicator(speaker.name);
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate typing
+            speakerIndicator.remove();
+            await displayMessage(speaker.name, serverQuery, characterColors[speaker.name], true);
+
+            // 2. Select a responder (Astro or a random character excluding the speaker and user)
+            const potentialResponders = chatroomCharacters.filter(c => c.name !== speaker.name && c.name !== window.currentUsername);
+            const responder = chatroomCharacters.find(c => c.name === '-Astro-') || potentialResponders[Math.floor(Math.random() * potentialResponders.length)];
+
+            let responseText = '';
+            
+            // 3. Generate the response based on the current status
+            if (isServerUp) {
+                responseText = `Yeah, it's totally up! Come join, ${speaker.name}. I'm already playing with Emily. SWAG!`;
+                displayMessage("SYSTEM", "RZCR server status is currently: ONLINE.", 'text-gray-500');
+            } else {
+                responseText = `Nah, not yet, I think JManBuilds is still doing tech stuff on it. TBH, it's been down forever. LOL.`;
+                displayMessage("SYSTEM", "RZCR server status is currently: OFFLINE.", 'text-gray-500');
+            }
+
+            // 4. Respond as a different character
+            const responderIndicator = displayTypingIndicator(responder.name);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            responderIndicator.remove();
+            await displayMessage(responder.name, responseText, characterColors[responder.name], true);
+            
+            // 5. Randomly flip the server state for the next interaction
+            if (Math.random() < 0.5) {
+                isServerUp = !isServerUp;
+            }
+            
+            return true;
+        }
+
+
+        // --- Simulation Control ---
+
+        /**
+         * Periodically checks if the chat has been inactive long enough to "die".
+         */
+        function checkChatActivity() {
+            if (!isChatting && !isChatDead && (Date.now() - lastMessageTime > CHAT_DEAD_TIMEOUT)) {
+                console.log("Chat has gone dead. Stopping chatLoop.");
+                if (chatLoopTimeout) clearTimeout(chatLoopTimeout);
+                isChatDead = true;
+                displayMessage("SYSTEM", "SERVER ACTIVITY DECREASING. CHAT IS IDLE.", 'text-gray-500');
+            }
+        }
+
+        /**
+         * Generates the prompt for the AI based on history.
+         */
+        function createAIPrompt(speaker, history, userQuery = null) {
+            const historyText = history.map(msg => `${msg.role}: ${msg.text}`).join('\n');
+            
+            let prompt = `Current Chat Context (2011 Slang):\n---\n${historyText}\n---\n`;
+            
+            if (userQuery) {
+                // This structure is used for immediate forced responses
+                prompt += `The user just sent a message related to this topic: "${userQuery}". Respond directly to this message as ${speaker.name}.`;
+            } else {
+                // This structure is used for random chat loop messages
+                prompt += `Generate a short, conversational, contextual message as ${speaker.name}.`;
+            }
+            
+            return prompt;
+        }
+
+        /**
+         * Main function for AI-driven chat simulation loop.
+         */
+        async function chatLoop() {
+            if (isChatting || isChatDead) return;
+            isChatting = true;
+
+            const speaker = chatroomCharacters[Math.floor(Math.random() * chatroomCharacters.length)];
+            let responseHandled = false;
+
+            // 1. 19% Chance to ask if the RZCR server is up.
+            if (Math.random() < 0.19) {
+                responseHandled = await handleServerInquiry(speaker);
+            }
+
+            // 2. L33tGamer's specific chance (13% chance and must be L33tGamer)
+            if (!responseHandled && speaker.name === 'L33tGamer' && Math.random() < 0.13) {
+                 
+                 // Get the last person to chat (excluding the system and the current speaker)
+                 const lastChatter = chatHistory.slice().reverse().find(msg => msg.role !== 'SYSTEM' && msg.role !== speaker.name);
+                 const lastChatterName = lastChatter ? lastChatter.role : window.currentUsername || 'USER'; 
+                 
+                 // Find a recent topic (Minecraft, gaming, etc.) from history or default to gaming
+                 let topic = "gaming";
+                 if (lastChatter && lastChatter.text.toLowerCase().includes('minecraft')) topic = "Minecraft builds";
+                 else if (lastChatter && lastChatter.text.toLowerCase().includes('anime')) topic = "anime reviews";
+                 else if (lastChatter && lastChatter.text.toLowerCase().includes('book')) topic = "book reviews";
+
+                 const subMessage = `OMG hey @${lastChatterName}! Your ${topic} talk is so cool. I make content about ${topic} too! You should sub to my channel, link in bio! lol`;
+
+                 const typingIndicatorElement = displayTypingIndicator(speaker.name);
+                 await new Promise(resolve => setTimeout(resolve, 1500)); 
+                 typingIndicatorElement.remove();
+                 await displayMessage(speaker.name, subMessage, characterColors[speaker.name], true);
+                 
+                 responseHandled = true;
+            }
+
+            // 3. General conversational message (if no special action was taken)
+            if (!responseHandled) {
+                const prompt = createAIPrompt(speaker, chatHistory, null);
+                
+                const typingIndicatorElement = displayTypingIndicator(speaker.name);
+
+                try {
+                    const responseText = await callGeminiApi(speaker, prompt);
+                    typingIndicatorElement.remove();
+                    await displayMessage(speaker.name, responseText, characterColors[speaker.name], true);
+                } catch (error) {
+                    console.error("AI Loop Error:", error);
+                    typingIndicatorElement.remove();
+                    await displayMessage("SYSTEM", "NETWORK ERROR: CHATTER INTERRUPTED.", 'text-red-600');
+                }
+            }
+
+            isChatting = false;
+
+            // Set the next random delay (8 to 12 seconds)
+            const nextDelay = Math.random() * 4000 + 8000; 
+            chatLoopTimeout = setTimeout(chatLoop, nextDelay);
+        }
+
+        /**
+         * Starts the continuous chatroom simulation loop.
+         */
+        function startChatLoop() {
+            if (chatLoopTimeout) clearTimeout(chatLoopTimeout);
+            if (isChatDead) {
+                isChatDead = false; 
+                displayMessage("SYSTEM", "CHAT ACTIVITY RESUMED.", 'text-gray-500');
+            }
+            chatLoop();
+        }
+
+        // --- User Interaction Functions ---
+
+        /**
+         * Main function to handle sending a user message, checks for @mentions and topics.
+         */
+        window.sendMessage = async () => {
+            const query = userInput.value.trim();
+            if (!query) return;
+
+            const userDisplayName = window.currentUsername || (window.userId ? window.userId.substring(0, 8) : 'USER');
+            const isMod = userDisplayName === MOD_USERNAME; // Check if user is Mod
+            
+            // 1. Display user message
+            await displayMessage(userDisplayName, query, 'text-cyan-400');
+            userInput.value = '';
+            
+            // 2. Add user message to history so AI can react to it
+            chatHistory.push({ role: userDisplayName, text: query });
+            while (chatHistory.length > MAX_HISTORY) {
+                chatHistory.shift();
+            }
+
+            // 3. Log user message to Firestore
+            if (window.logUserMessage) {
+                try {
+                    await window.logUserMessage(query);
+                } catch (e) {
+                    window.displayError('Failed to log message to database.');
+                    console.error(e);
+                }
+            }
+            
+            // 4. Handle Mentions and Topic Triggers (Highest Priority)
+            const mentionMatch = query.match(/@(\w|-)+/i);
+            const everyoneMatch = query.toLowerCase().includes('@everyone');
+            let responseHandled = false;
+            
+            if (chatLoopTimeout) clearTimeout(chatLoopTimeout);
+            isChatting = true;
+
+            if (everyoneMatch && isMod) {
+                // MOD-ONLY @Everyone Command
+                responseHandled = true;
+                
+                // Select 3 random characters + Astro to respond to the mod broadcast
+                const speakers = [];
+                // Ensure Astro is included for flavor
+                const astro = chatroomCharacters.find(c => c.name === '-Astro-');
+                if(astro) speakers.push(astro); 
+                
+                while (speakers.length < 4) { 
+                    const randomChar = chatroomCharacters[Math.floor(Math.random() * chatroomCharacters.length)];
+                    if (!speakers.includes(randomChar)) {
+                        speakers.push(randomChar);
+                    }
+                }
+                
+                for (const speaker of speakers) {
+                    const typingIndicatorElement = displayTypingIndicator(speaker.name); // Show indicator
+                    const everyonePrompt = `The Moderator ${userDisplayName} just used the '@Everyone' command to broadcast this message: "${query}". Respond briefly and acknowledge the broadcast as ${speaker.name}.`;
+                    
+                    const responseText = await callGeminiApi(speaker, everyonePrompt);
+                    typingIndicatorElement.remove(); // Remove indicator
+                    await displayMessage(speaker.name, responseText, characterColors[speaker.name], true);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Short delay between responses
+                }
+
+            } else if (everyoneMatch && !isMod) {
+                // Non-mod tries to use @Everyone
+                displayMessage("SYSTEM", `@Everyone command failed. Insufficient privileges. Only Mods can use this command.`, 'text-red-600', true);
+                responseHandled = true;
+                isChatting = false; // Allow loop to restart naturally
+
+            } else if (mentionMatch) {
+                // A. Handle @Mentions
+                const mentionedName = mentionMatch[0].substring(1);
+                const mentionedCharacter = chatroomCharacters.find(c => c.name.toLowerCase() === mentionedName.toLowerCase());
+                
+                if (mentionedCharacter) {
+                    const typingIndicatorElement = displayTypingIndicator(mentionedCharacter.name); // Show indicator
+                    try {
+                        const prompt = createAIPrompt(mentionedCharacter, chatHistory, query);
+                        const responseText = await callGeminiApi(mentionedCharacter, prompt);
+                        typingIndicatorElement.remove(); // Remove indicator
+                        await displayMessage(mentionedCharacter.name, responseText, characterColors[mentionedCharacter.name], true);
+                        responseHandled = true; 
+                    } catch (error) {
+                        console.error("Mention AI Error:", error);
+                        typingIndicatorElement.remove(); // Remove indicator
+                        await displayMessage("SYSTEM", `@${mentionedName} IS AFK. TRY AGAIN LATER.`, 'text-red-600');
+                    }
+                }
+            }
+            
+            // B. Handle Topic Triggers or General Response
+            
+            // Calculate the probability of an AI character responding to a general message:
+            // 75% chance for the Mod, 25% for a regular user, or always respond if chat is dead.
+            const responseChance = isMod ? 0.75 : 0.25;
+
+            if (isChatDead || Math.random() < responseChance) {
+                
+                let targetedSpeakers = [];
+                let promptBase = query;
+                const lowerQuery = query.toLowerCase();
+                
+                // Identify target speakers based on keywords
+                if (lowerQuery.includes('-server lag-')) {
+                    targetedSpeakers.push(chatroomCharacters.find(c => c.name === '-Astro-'));
+                    promptBase = "Server lag is bad. What should we do about it?";
+                } else if (lowerQuery.includes('-tech builds???-')) {
+                    targetedSpeakers.push(chatroomCharacters.find(c => c.name === '-Astro-'));
+                    targetedSpeakers.push(chatroomCharacters.find(c => c.name === 'JManBuilds'));
+                    promptBase = "Let's talk about technical Minecraft builds, what are you working on?";
+                } else if (lowerQuery.includes('-who here is part of the lgbtq comm?-')) {
+                    targetedSpeakers.push(chatroomCharacters.find(c => c.name === '-Astro-'));
+                    targetedSpeakers.push(chatroomCharacters.find(c => c.name === 'Emily'));
+                    // Select a random supportive user
+                    const randomPride = chatroomCharacters.filter(c => c.name !== '-Astro-' && c.name !== 'Emily')[Math.floor(Math.random() * (chatroomCharacters.length - 2))];
+                    targetedSpeakers.push(randomPride);
+                    promptBase = "I saw your question about the LGBTQ community. I'm here too, how are you doing?";
+                } else if (!mentionMatch) {
+                    // General topics or 25%/75% random response
+                    targetedSpeakers.push(chatroomCharacters[Math.floor(MathroomCharacters.length)]);
+                }
+
+                if (targetedSpeakers.length > 0) {
+                    
+                    for (const speaker of targetedSpeakers) {
+                        const typingIndicatorElement = displayTypingIndicator(speaker.name); // Show indicator
+                        const prompt = createAIPrompt(speaker, chatHistory, promptBase);
+                        const responseText = await callGeminiApi(speaker, prompt);
+                        typingIndicatorElement.remove(); // Remove indicator
+                        await displayMessage(speaker.name, responseText, characterColors[speaker.name], true);
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                    }
+                    responseHandled = true;
+                }
+            }
+
+            // 5. Restart the chat loop
+            isChatting = false;
+            startChatLoop(); 
+
+            userInput.focus();
+        };
+
+        // --- DM Simulation ---
+
+        window.showDM = (username) => {
+            const character = chatroomCharacters.find(c => c.name === username);
+            const dmTitle = document.getElementById('dm-title');
+            const dmPersona = document.getElementById('dm-persona');
+
+            if (character) {
+                dmTitle.innerHTML = `&gt;&gt; DM with <span class="${characterColors[username]}">${username}</span>`;
+                dmPersona.textContent = character.persona;
+            } else {
+                dmTitle.textContent = `>> DM with ${username}`;
+                dmPersona.textContent = "This is your own user ID. Private chat is not available.";
+            }
+
+            DM_MODAL.classList.remove('hidden');
+            MODAL_OVERLAY.classList.remove('hidden');
+            
+            // Auto-close DM after 5 seconds
+            setTimeout(closeDM, 5000); 
+        }
+
+        window.closeDM = () => {
+            DM_MODAL.classList.add('hidden');
+            MODAL_OVERLAY.classList.add('hidden');
+        }
+
+        // --- Initialization ---
+
+        function setupUI() {
+            // 1. Wait for Firebase auth to be ready and display user ID
+            const checkAuth = setInterval(() => {
+                if (window.isAuthReady && window.userId && window.currentUsername) { // Check for currentUsername too
+                    clearInterval(checkAuth);
+                    // Update display to show custom username
+                    userIdDisplay.textContent = `USER: <${window.currentUsername}> ID: ${window.userId}`;
+                }
+            }, 100);
+
+            // 2. Generate characters and start the chat simulation
+            generateChatroomCharacters();
+            startChatLoop();
+            
+            // 3. Start activity checker
+            activityCheckerInterval = setInterval(checkChatActivity, 30000); // Check every 30 seconds
+        }
+        window.onload = setupUI;
+    </script>
 </body>
 </html>
